@@ -3,6 +3,7 @@ using System;
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
 using UnityEngine.EventSystems;
 #endif
@@ -136,10 +137,15 @@ public sealed class RiseSdk {
     /// </summary>
     public const int CONFIG_KEY_PACKAGE_NAME = 10;
 
+    private String BACK_HOME_ADPOS = M_CUSTOM;
+    private bool BACK_HOME_AD_ENABLE = false;
+    private double BACK_HOME_AD_TIME = 0;
+    private bool canShowBackHomeAd = false;
+
     /// <summary>
     /// 广告事件类型
     /// </summary>
-    public enum AdEventType:int {
+    public enum AdEventType : int {
         /// <summary>
         /// 大屏广告被关闭
         /// </summary>
@@ -195,6 +201,7 @@ public sealed class RiseSdk {
     /// 初始化SDK，最好在第一个场景加载时初始化。
     /// </summary>
     public void Init () {
+        RiseEditorAd.hasInit = true;
         if (_class != null)
             return;
 #if UNITY_ANDROID
@@ -231,8 +238,10 @@ public sealed class RiseSdk {
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.ShowBanner (tag, pos);
 #endif
-        if (_class != null)
+        if (_class != null) {
             _class.CallStatic ("showBanner", tag, pos);
+            Debug.LogWarning ("showBanner");
+        }
     }
 
     /// <summary>
@@ -249,8 +258,10 @@ public sealed class RiseSdk {
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.ShowBanner (pos);
 #endif
-        if (_class != null)
+        if (_class != null) {
             _class.CallStatic ("showBanner", pos);
+            Debug.LogWarning ("showBanner");
+        }
     }
 
     /// <summary>
@@ -277,6 +288,7 @@ public sealed class RiseSdk {
     /// </summary>
     /// <param name="tag">大屏广告弹出时机，如：M_PAUSE为游戏暂停时弹出</param>
     public void ShowAd (String tag) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.ShowAd (tag);
 #endif
@@ -288,6 +300,7 @@ public sealed class RiseSdk {
     /// 更多游戏接口，跳到推广的游戏列表界面。
     /// </summary>
     public void ShowMore () {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("ShowMore");
 #endif
@@ -340,8 +353,10 @@ public sealed class RiseSdk {
     /// </summary>
     /// <param name="rewardId">客户端自己配置的视频广告调用时机</param>
     public void ShowRewardAd (int rewardId) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.ShowRewardAd (rewardId);
+        RiseSdkListener.Instance.onReceiveReward ("true|1");
 #endif
         if (_class != null)
             _class.CallStatic ("showRewardAd", rewardId);
@@ -360,11 +375,17 @@ public sealed class RiseSdk {
     /// <param name="tag">视频广告tag</param>
     /// <param name="rewardId">客户端自己配置的视频广告调用时机</param>
     public void ShowRewardAd (string tag, int rewardId) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.ShowRewardAd (tag, rewardId);
 #endif
         if (_class != null)
             _class.CallStatic ("showRewardAd", tag, rewardId);
+    }
+
+    public void enableBackHomeAd (bool enabled, String adPos) {
+        BACK_HOME_ADPOS = adPos;
+        BACK_HOME_AD_ENABLE = enabled;
     }
 
     /// <summary>
@@ -373,6 +394,12 @@ public sealed class RiseSdk {
     public void OnResume () {
         if (_class != null)
             _class.CallStatic ("onResume");
+        if (BACK_HOME_AD_ENABLE) {
+            if (canShowBackHomeAd && BACK_HOME_AD_TIME <= 0) {
+                canShowBackHomeAd = false;
+                ShowAd (BACK_HOME_ADPOS);
+            }
+        }
     }
 
     /// <summary>
@@ -381,6 +408,13 @@ public sealed class RiseSdk {
     public void OnPause () {
         if (_class != null)
             _class.CallStatic ("onPause");
+        if (BACK_HOME_AD_ENABLE) {
+            double now = GetCurrentTimeInMills ();
+            double delta = now - BACK_HOME_AD_TIME;
+            canShowBackHomeAd = delta > 500;
+            if (canShowBackHomeAd)
+                BACK_HOME_AD_TIME = 0;
+        }
     }
 
     /// <summary>
@@ -389,6 +423,7 @@ public sealed class RiseSdk {
     public void OnStart () {
         if (_class != null)
             _class.CallStatic ("onStart");
+
     }
 
     /// <summary>
@@ -411,6 +446,10 @@ public sealed class RiseSdk {
     /// 需要退出游戏时调用。
     /// </summary>
     public void OnExit () {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
+#if UNITY_EDITOR
+        RiseEditorAd.EditorAdInstance.OnExit ();
+#endif
         if (_class != null)
             _class.CallStatic ("onQuit");
     }
@@ -445,6 +484,7 @@ public sealed class RiseSdk {
     /// </summary>
     /// <param name="billingId">计费点id</param>
     public void Pay (int billingId) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Pay (billingId);
 #endif
@@ -457,6 +497,7 @@ public sealed class RiseSdk {
     /// 分享游戏。
     /// </summary>
     public void Share () {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("Share");
 #endif
@@ -495,6 +536,7 @@ public sealed class RiseSdk {
     /// 跳转到游戏评分界面。
     /// </summary>
     public void Rate () {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("Rate");
 #endif
@@ -509,6 +551,7 @@ public sealed class RiseSdk {
     /// <param name="tag"></param>
     /// <param name="yPercent"></param>
     public void ShowNativeAd (string tag, int yPercent) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("ShowNativeAd");
 #endif
@@ -596,6 +639,7 @@ public sealed class RiseSdk {
     /// => {to do something};
     /// </summary>
     public void Invite () {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("Invite");
 #endif
@@ -618,6 +662,7 @@ public sealed class RiseSdk {
     /// <param name="title">挑战标题</param>
     /// <param name="message">挑战内容</param>
     public void Challenge (string title, string message) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("Challenge, title: " + title + ", message: " + message);
 #endif
@@ -694,6 +739,7 @@ public sealed class RiseSdk {
     /// => {to do something};
     /// </summary>
     public void Like () {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Toast ("Like");
 #endif
@@ -774,6 +820,7 @@ public sealed class RiseSdk {
     /// </summary>
     /// <param name="packageName">需要打开的app的包名</param>
     public void LaunchApp (string packageName) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
         if (_class != null) {
             _class.CallStatic ("launchApp", packageName);
         }
@@ -784,6 +831,7 @@ public sealed class RiseSdk {
     /// </summary>
     /// <param name="packageName">需要下载的app的包名</param>
     public void GetApp (string packageName) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
         if (_class != null) {
             _class.CallStatic ("getApp", packageName);
         }
@@ -812,6 +860,7 @@ public sealed class RiseSdk {
     /// <param name="title">对话框标题</param>
     /// <param name="message">对话框内容</param>
     public void Alert (string title, string message) {
+        BACK_HOME_AD_TIME = GetCurrentTimeInMills ();
 #if UNITY_EDITOR
         RiseEditorAd.EditorAdInstance.Alert (title, message);
 #endif
@@ -845,6 +894,7 @@ public sealed class RiseSdk {
     }
 
     #region Umeng
+
     /// <summary>
     /// 友盟统计，设置玩家等级。
     /// </summary>
@@ -1044,6 +1094,7 @@ public sealed class RiseSdk {
             _class.CallStatic ("UM_bonus", itemName, number, price, trigger);
         }
     }
+
     #endregion
 
     /*
@@ -1095,282 +1146,284 @@ public sealed class RiseSdk {
 		}
 	}*/
 
+    public static double GetCurrentTimeInMills () {
+        TimeSpan span = DateTime.Now.Subtract (new DateTime (1970, 1, 1, 0, 0, 0));
+        return span.TotalMilliseconds;
+    }
 
 
+    /// <summary>
+    /// Editor模式下的广告测试类，不可以调用该类的方法。
+    /// </summary>
+    private class RiseEditorAd : MonoBehaviour {
 
-/// <summary>
-/// Editor模式下的广告测试类，不可以调用该类的方法。
-/// </summary>
-private class RiseEditorAd : MonoBehaviour {
-
-    private static RiseEditorAd _editorAdInstance = null;
-    private Rect bannerPos;
-    private bool bannerShow = false;
-    private string bannerContent = "";
-    private bool interstitialShow = false;
-    private string interstitialContent = "";
-    private bool rewardShow = false;
-    private string rewardContent = "";
-    private float scaleWidth = 1;
-    private float scaleHeight = 1;
-    private int originScreenWidth = 1;
-    private int originScreenHeight = 1;
-    private bool toastShow = false;
-    private List<string> toastList = new List<string> ();
-    private GUIStyle toastStyle = null;
+        private static RiseEditorAd _editorAdInstance = null;
+        public static bool hasInit = false;
+        private Rect bannerPos;
+        private bool bannerShow = false;
+        private string bannerContent = "";
+        private bool interstitialShow = false;
+        private string interstitialContent = "";
+        private bool rewardShow = false;
+        private string rewardContent = "";
+        private float scaleWidth = 1;
+        private float scaleHeight = 1;
+        private int originScreenWidth = 1;
+        private int originScreenHeight = 1;
+        private bool toastShow = false;
+        private List<string> toastList = new List<string> ();
+        private GUIStyle toastStyle = null;
+        private string rewardAdId = NONE_REWARD_ID;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-    private EventSystem curEvent = null;
+        private EventSystem curEvent = null;
 #endif
 
-    private const string BANNER_DEFAULT_TXT = "Banner AD: ";
-    private const string INTERSTITIAL_DEFAULT_TXT = "\nInterstitial AD Test";
-    private const string REWARD_DEFAULT_TXT = "Free Coin AD Test: ";
-    private const int SCREEN_WIDTH = 854;
-    private const int SCREEN_HEIGHT = 480;
-    private const int GUI_DEPTH = -99;
-    private const int BANNER_WIDTH = 320;
-    private const int BANNER_HEIGHT = 50;
+        private const string NONE_REWARD_ID = "None";
+        private const string BANNER_DEFAULT_TXT = "Banner AD: ";
+        private const string INTERSTITIAL_DEFAULT_TXT = "\nInterstitial AD Test";
+        private const string REWARD_DEFAULT_TXT = "Free Coin AD Test: ";
+        private const int SCREEN_WIDTH = 854;
+        private const int SCREEN_HEIGHT = 480;
+        private const int GUI_DEPTH = -99;
+        private const int BANNER_WIDTH = 320;
+        private const int BANNER_HEIGHT = 50;
 
-    void Awake () {
-        if (_editorAdInstance == null) {
-            _editorAdInstance = this;
-        }
-        DontDestroyOnLoad (gameObject);
-        if (Screen.width > Screen.height) {
-            originScreenWidth = SCREEN_WIDTH;
-            originScreenHeight = SCREEN_HEIGHT;
-        } else {
-            originScreenWidth = SCREEN_HEIGHT;
-            originScreenHeight = SCREEN_WIDTH;
-        }
-        scaleWidth = Screen.width * 1f / originScreenWidth;
-        scaleHeight = Screen.height * 1f / originScreenHeight;
-        toastStyle = new GUIStyle ();
-        toastStyle.fontStyle = FontStyle.Bold;
-        toastStyle.alignment = TextAnchor.MiddleCenter;
-        toastStyle.fontSize = 30;
-    }
-
-    public static RiseEditorAd EditorAdInstance {
-        get {
+        void Awake () {
             if (_editorAdInstance == null) {
-                _editorAdInstance = FindObjectOfType<RiseEditorAd> () == null ? new GameObject ("RiseEditorAd").AddComponent<RiseEditorAd> () : _editorAdInstance;
+                _editorAdInstance = this;
             }
-            return _editorAdInstance;
+            DontDestroyOnLoad (gameObject);
+            if (Screen.width > Screen.height) {
+                originScreenWidth = SCREEN_WIDTH;
+                originScreenHeight = SCREEN_HEIGHT;
+            } else {
+                originScreenWidth = SCREEN_HEIGHT;
+                originScreenHeight = SCREEN_WIDTH;
+            }
+            scaleWidth = Screen.width * 1f / originScreenWidth;
+            scaleHeight = Screen.height * 1f / originScreenHeight;
+            toastStyle = new GUIStyle ();
+            toastStyle.fontStyle = FontStyle.Bold;
+            toastStyle.alignment = TextAnchor.MiddleCenter;
+            toastStyle.fontSize = 30;
         }
-    }
+
+        public static RiseEditorAd EditorAdInstance {
+            get {
+                if (_editorAdInstance == null) {
+                    _editorAdInstance = FindObjectOfType<RiseEditorAd> () == null ? new GameObject ("RiseEditorAd").AddComponent<RiseEditorAd> () : _editorAdInstance;
+                }
+                if (!hasInit) {
+                    Debug.LogError ("Fatal Error: \nNeed Call RiseSdk.Instance.Init () First At Initialize Scene");
+                }
+                return _editorAdInstance;
+            }
+        }
 
 #if UNITY_EDITOR
-    void OnGUI () {
+        void OnGUI () {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-        if (curEvent == null) {
-            curEvent = EventSystem.current;
-        }
-#endif
-        GUI.depth = GUI_DEPTH;
-        if (bannerShow) {
-            GUI.backgroundColor = Color.green;
-            GUI.color = Color.red;
-            if (GUI.Button (bannerPos, bannerContent)) {
-#if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
-                }
-#endif
+            if (curEvent == null) {
+                curEvent = EventSystem.current;
             }
-            GUI.backgroundColor = Color.green;
-            if (GUI.Button (bannerPos, bannerContent)) {
+#endif
+            GUI.depth = GUI_DEPTH;
+            if (bannerShow) {
+                GUI.backgroundColor = Color.green;
+                GUI.color = Color.red;
+                if (GUI.Button (bannerPos, bannerContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            GUI.backgroundColor = Color.green;
-            if (GUI.Button (bannerPos, bannerContent)) {
+                GUI.backgroundColor = Color.green;
+                if (GUI.Button (bannerPos, bannerContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            GUI.backgroundColor = Color.green;
-            if (GUI.Button (bannerPos, bannerContent)) {
+                GUI.backgroundColor = Color.green;
+                if (GUI.Button (bannerPos, bannerContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-        }
-        if (interstitialShow) {
-            GUI.backgroundColor = Color.black;
-            //GUI.backgroundColor = new Color (0, 0, 0, 1);
-            //GUI.color = new Color (1, 0, 0, 1);
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                interstitialShow = false;
+                GUI.backgroundColor = Color.green;
+                if (GUI.Button (bannerPos, bannerContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
             }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
+            if (interstitialShow) {
+                GUI.backgroundColor = Color.black;
+                //GUI.backgroundColor = new Color (0, 0, 0, 1);
+                //GUI.color = new Color (1, 0, 0, 1);
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    interstitialShow = false;
+                    Instance.OnResume ();
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            GUI.backgroundColor = Color.red;
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                interstitialShow = false;
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), interstitialContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                interstitialShow = false;
+                GUI.backgroundColor = Color.red;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    interstitialShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                interstitialShow = false;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    interstitialShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                interstitialShow = false;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    interstitialShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-        }
-        if (rewardShow) {
-            GUI.backgroundColor = Color.black;
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                rewardShow = false;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    interstitialShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
             }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
+            if (rewardShow) {
+                GUI.backgroundColor = Color.black;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    rewardShow = false;
+                    Instance.OnResume ();
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+                    RewardAdCallBack ();
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            GUI.backgroundColor = Color.red;
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                rewardShow = false;
+                if (GUI.Button (new Rect (0, 0, Screen.width, Screen.height), rewardContent)) {
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                rewardShow = false;
+                GUI.backgroundColor = Color.red;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    rewardShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+                    RewardAdCallBack ();
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                rewardShow = false;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    rewardShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+                    RewardAdCallBack ();
+#endif
                 }
-#endif
-            }
-            if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
-                rewardShow = false;
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    rewardShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-                if (EventSystem.current != null) {
-                    EventSystem.current.enabled = false;
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+                    RewardAdCallBack ();
+#endif
                 }
-#endif
-            }
-        }
-        if (toastList.Count > 0) {
-            GUI.backgroundColor = Color.black;
-            GUI.color = Color.red;
-            //GUI.contentColor = Color.red;
-            GUI.Button (new Rect ((Screen.width - 400 * scaleWidth) * .5f, Screen.height - 100 * scaleHeight, 400 * scaleWidth, 50 * scaleHeight), toastList [0]);
-            GUI.Button (new Rect ((Screen.width - 400 * scaleWidth) * .5f, Screen.height - 100 * scaleHeight, 400 * scaleWidth, 50 * scaleHeight), toastList [0]);
-            //GUI.Label (new Rect ((Screen.width - 200 * scaleWidth) * .5f, Screen.height - 100 * scaleHeight, 200 * scaleWidth, 50 * scaleHeight), toastList [0], toastStyle);
-        }
+                if (GUI.Button (new Rect (Screen.width - 100 * scaleWidth, 0, 100 * scaleWidth, 50 * scaleHeight), "Close")) {
+                    rewardShow = false;
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
-        if (EventSystem.current != null) {
-            EventSystem.current.enabled = true;
-        } else if (curEvent != null) {
-            curEvent.enabled = true;
-            EventSystem.current = curEvent;
-        }
+                    if (EventSystem.current != null) {
+                        EventSystem.current.enabled = false;
+                    }
+                    RewardAdCallBack ();
 #endif
-    }
-
-    void Update () {
-        if (Input.GetKeyDown (KeyCode.Escape)) {
-            interstitialShow = false;
-            rewardShow = false;
+                }
+            }
+            if (toastList.Count > 0) {
+                GUI.backgroundColor = Color.black;
+                GUI.color = Color.red;
+                //GUI.contentColor = Color.red;
+                GUI.Button (new Rect ((Screen.width - 400 * scaleWidth) * .5f, Screen.height - 100 * scaleHeight, 400 * scaleWidth, 50 * scaleHeight), toastList [0]);
+                GUI.Button (new Rect ((Screen.width - 400 * scaleWidth) * .5f, Screen.height - 100 * scaleHeight, 400 * scaleWidth, 50 * scaleHeight), toastList [0]);
+                //GUI.Label (new Rect ((Screen.width - 200 * scaleWidth) * .5f, Screen.height - 100 * scaleHeight, 200 * scaleWidth, 50 * scaleHeight), toastList [0], toastStyle);
+            }
 #if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
             if (EventSystem.current != null) {
                 EventSystem.current.enabled = true;
@@ -1380,128 +1433,163 @@ private class RiseEditorAd : MonoBehaviour {
             }
 #endif
         }
-    }
-#endif
 
-    public void ShowBanner (int pos) {
-#if UNITY_EDITOR
-        bannerContent = BANNER_DEFAULT_TXT + "default";
-        bannerShow = true;
-        SetBannerPos (pos);
-        Toast ("ShowBanner, pos: " + pos);
+        void Update () {
+            if (Input.GetKeyDown (KeyCode.Escape)) {
+                interstitialShow = false;
+                rewardShow = false;
+#if UNITY_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
+                if (EventSystem.current != null) {
+                    EventSystem.current.enabled = true;
+                } else if (curEvent != null) {
+                    curEvent.enabled = true;
+                    EventSystem.current = curEvent;
+                }
 #endif
-    }
+            }
+        }
 
-    public void ShowBanner (string tag, int pos) {
-#if UNITY_EDITOR
-        bannerContent = BANNER_DEFAULT_TXT + tag;
-        bannerShow = true;
-        SetBannerPos (pos);
-        Toast ("ShowBanner, tag: " + tag + ", pos: " + pos);
-#endif
-    }
-
-    public void CloseBanner () {
-#if UNITY_EDITOR
-        bannerShow = false;
-        Toast ("CloseBanner");
-#endif
-    }
-
-    private void SetBannerPos (int pos) {
-#if UNITY_EDITOR
-        switch (pos) {
-            case RiseSdk.POS_BANNER_LEFT_BOTTOM:
-                bannerPos = new Rect (0, Screen.height - BANNER_HEIGHT * scaleHeight, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
-            case RiseSdk.POS_BANNER_LEFT_TOP:
-                bannerPos = new Rect (0, 0, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
-            case RiseSdk.POS_BANNER_MIDDLE_BOTTOM:
-                bannerPos = new Rect ((Screen.width - BANNER_WIDTH * scaleWidth) * .5f, Screen.height - BANNER_HEIGHT * scaleHeight, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
-            case RiseSdk.POS_BANNER_MIDDLE_MIDDLE:
-                bannerPos = new Rect ((Screen.width - BANNER_WIDTH * scaleWidth) * .5f, (Screen.height - BANNER_HEIGHT * scaleHeight) * .5f, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
-            case RiseSdk.POS_BANNER_MIDDLE_TOP:
-                bannerPos = new Rect ((Screen.width - BANNER_WIDTH * scaleWidth) * .5f, 0, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
-            case RiseSdk.POS_BANNER_RIGHT_BOTTOM:
-                bannerPos = new Rect (Screen.width - BANNER_WIDTH * scaleWidth, Screen.height - BANNER_HEIGHT * scaleHeight, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
-            case RiseSdk.POS_BANNER_RIGHT_TOP:
-                bannerPos = new Rect (Screen.width - BANNER_WIDTH * scaleWidth, 0, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
-                break;
+        private void RewardAdCallBack () {
+            if (!rewardAdId.Equals (NONE_REWARD_ID)) {
+                RiseSdkListener.Instance.onReceiveReward ("0|" + rewardAdId);
+            }
+            rewardAdId = NONE_REWARD_ID;
         }
 #endif
-    }
 
-    public void ShowAd (string tag) {
+        public void ShowBanner (int pos) {
 #if UNITY_EDITOR
-        interstitialShow = true;
-        interstitialContent = tag + INTERSTITIAL_DEFAULT_TXT;
+            bannerContent = BANNER_DEFAULT_TXT + "default";
+            bannerShow = true;
+            SetBannerPos (pos);
+            Toast ("ShowBanner, pos: " + pos);
 #endif
-    }
-
-    public void ShowRewardAd (int id) {
-#if UNITY_EDITOR
-        rewardShow = true;
-        rewardContent = REWARD_DEFAULT_TXT + "default";
-#endif
-    }
-
-    public void ShowRewardAd (string tag, int id) {
-#if UNITY_EDITOR
-        rewardShow = true;
-        rewardContent = REWARD_DEFAULT_TXT + tag;
-#endif
-    }
-
-    public void Pay (int billingId) {
-#if UNITY_EDITOR
-        switch (EditorUtility.DisplayDialogComplex ("Pay", "Pay: " + billingId, "TRY FAILURE", "NO", "YES")) {
-            case 0://TRY FAILURE
-                RiseSdkListener.Instance.onPaymentFail (billingId + "");
-                break;
-            case 1://NO
-                RiseSdkListener.Instance.onPaymentCanceled (billingId + "");
-                break;
-            case 2://YES
-                RiseSdkListener.Instance.onPaymentSuccess (billingId + "");
-                break;
         }
-#endif
-    }
 
-    private bool timeCounting = false;
-    public void Toast (string msg) {
+        public void ShowBanner (string tag, int pos) {
 #if UNITY_EDITOR
-        toastList.Add (msg);
-        if (!timeCounting) {
-            timeCounting = true;
-            StartCoroutine (CheckToast ());
-        }
+            bannerContent = BANNER_DEFAULT_TXT + tag;
+            bannerShow = true;
+            SetBannerPos (pos);
+            Toast ("ShowBanner, tag: " + tag + ", pos: " + pos);
 #endif
-    }
-
-    private IEnumerator CheckToast (float time = 2) {
-        yield return new WaitForSeconds (time);
-        if (toastList.Count > 0) {
-            toastList.RemoveAt (0);
         }
-        if (toastList.Count > 0) {
-            StartCoroutine (CheckToast ());
-        } else {
-            timeCounting = false;
-        }
-    }
 
-    public void Alert (string title, string msg) {
+        public void CloseBanner () {
 #if UNITY_EDITOR
-        EditorUtility.DisplayDialog (title, msg, "NO", "OK");
+            bannerShow = false;
+            Toast ("CloseBanner");
 #endif
-    }
+        }
 
-}
+        private void SetBannerPos (int pos) {
+#if UNITY_EDITOR
+            switch (pos) {
+                case RiseSdk.POS_BANNER_LEFT_BOTTOM:
+                    bannerPos = new Rect (0, Screen.height - BANNER_HEIGHT * scaleHeight, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+                case RiseSdk.POS_BANNER_LEFT_TOP:
+                    bannerPos = new Rect (0, 0, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+                case RiseSdk.POS_BANNER_MIDDLE_BOTTOM:
+                    bannerPos = new Rect ((Screen.width - BANNER_WIDTH * scaleWidth) * .5f, Screen.height - BANNER_HEIGHT * scaleHeight, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+                case RiseSdk.POS_BANNER_MIDDLE_MIDDLE:
+                    bannerPos = new Rect ((Screen.width - BANNER_WIDTH * scaleWidth) * .5f, (Screen.height - BANNER_HEIGHT * scaleHeight) * .5f, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+                case RiseSdk.POS_BANNER_MIDDLE_TOP:
+                    bannerPos = new Rect ((Screen.width - BANNER_WIDTH * scaleWidth) * .5f, 0, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+                case RiseSdk.POS_BANNER_RIGHT_BOTTOM:
+                    bannerPos = new Rect (Screen.width - BANNER_WIDTH * scaleWidth, Screen.height - BANNER_HEIGHT * scaleHeight, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+                case RiseSdk.POS_BANNER_RIGHT_TOP:
+                    bannerPos = new Rect (Screen.width - BANNER_WIDTH * scaleWidth, 0, BANNER_WIDTH * scaleWidth, BANNER_HEIGHT * scaleHeight);
+                    break;
+            }
+#endif
+        }
+
+        public void ShowAd (string tag) {
+#if UNITY_EDITOR
+            interstitialShow = true;
+            interstitialContent = tag + INTERSTITIAL_DEFAULT_TXT;
+            Instance.OnPause ();
+#endif
+        }
+
+        public void ShowRewardAd (int id) {
+#if UNITY_EDITOR
+            rewardShow = true;
+            rewardContent = REWARD_DEFAULT_TXT + "default";
+            rewardAdId = id + "";
+            Instance.OnPause ();
+#endif
+        }
+
+        public void ShowRewardAd (string tag, int id) {
+#if UNITY_EDITOR
+            rewardShow = true;
+            rewardContent = REWARD_DEFAULT_TXT + tag;
+            rewardAdId = id + "";
+            Instance.OnPause ();
+#endif
+        }
+
+        public void Pay (int billingId) {
+#if UNITY_EDITOR
+            switch (EditorUtility.DisplayDialogComplex ("Pay", "Pay: " + billingId, "TRY FAILURE", "NO", "YES")) {
+                case 0://TRY FAILURE
+                    RiseSdkListener.Instance.onPaymentFail (billingId + "");
+                    break;
+                case 1://NO
+                    RiseSdkListener.Instance.onPaymentCanceled (billingId + "");
+                    break;
+                case 2://YES
+                    RiseSdkListener.Instance.onPaymentSuccess (billingId + "");
+                    break;
+            }
+#endif
+        }
+
+        private bool timeCounting = false;
+
+        public void Toast (string msg) {
+#if UNITY_EDITOR
+            toastList.Add (msg);
+            if (!timeCounting) {
+                timeCounting = true;
+                StartCoroutine (CheckToast ());
+            }
+#endif
+        }
+
+        private IEnumerator CheckToast (float time = 2) {
+            yield return new WaitForSeconds (time);
+            if (toastList.Count > 0) {
+                toastList.RemoveAt (0);
+            }
+            if (toastList.Count > 0) {
+                StartCoroutine (CheckToast ());
+            } else {
+                timeCounting = false;
+            }
+        }
+
+        public void Alert (string title, string msg) {
+#if UNITY_EDITOR
+            EditorUtility.DisplayDialog (title, msg, "NO", "OK");
+#endif
+        }
+
+        public void OnExit () {
+#if UNITY_EDITOR
+            if (EditorUtility.DisplayDialog ("Exit", "Are you sure to exit?", "YES", "NO")) {
+                EditorApplication.isPlaying = false;
+            }
+#endif
+        }
+
+    }
 
 }

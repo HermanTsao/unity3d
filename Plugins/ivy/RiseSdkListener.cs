@@ -46,7 +46,6 @@ public class RiseSdkListener : MonoBehaviour {
     private static event Action<RiseSdk.AdEventType> OnAdEvent;
 
     private static RiseSdkListener _instance;
-    private static RiseSdk riseSdk;
 
     /// <summary>
     /// 单例对象
@@ -60,7 +59,6 @@ public class RiseSdkListener : MonoBehaviour {
                 // nope, create a new one
                 if (!_instance) {
                     var obj = new GameObject ("RiseSdkListener");
-                    riseSdk = RiseSdk.Instance;
                     _instance = obj.AddComponent<RiseSdkListener> ();
                     DontDestroyOnLoad (obj);
                 }
@@ -72,23 +70,23 @@ public class RiseSdkListener : MonoBehaviour {
 
     void OnApplicationPause (bool pauseStatus) {
         if (pauseStatus) {
-            riseSdk.OnPause ();
+            RiseSdk.Instance.OnPause ();
         }
     }
 
     void OnApplicationFocus (bool focusStatus) {
         if (focusStatus) {
-            riseSdk.OnResume ();
+            RiseSdk.Instance.OnResume ();
         }
     }
 
     void OnApplicationQuit () {
-        riseSdk.OnStop ();
-        riseSdk.OnDestroy ();
+        RiseSdk.Instance.OnStop ();
+        RiseSdk.Instance.OnDestroy ();
     }
 
     void Awake () {
-        riseSdk.OnStart ();
+        RiseSdk.Instance.OnStart ();
     }
 
     /// <summary>
@@ -142,7 +140,7 @@ public class RiseSdkListener : MonoBehaviour {
     /// </summary>
     /// <param name="dummy"></param>
     public void onPaymentSystemValid (string dummy) {
-        riseSdk.SetPaymentSystemValid (true);
+        RiseSdk.Instance.SetPaymentSystemValid (true);
     }
 
     /// <summary>
@@ -242,8 +240,7 @@ public class RiseSdkListener : MonoBehaviour {
     }
 
     /// <summary>
-    /// 获取后台配置的自定义json数据的回调。当SDK初始化完成，第一次取到数据后会自动调用该方法，如果需要可以提前添加监听。
-    /// </summary>
+    /// 获取后台配置的自定义json数据的回调。当SDK初始化完成，第一稳〉绞?莺蠡嶙远?饔酶梅椒ǎ?绻?枰?梢蕴崆疤砑蛹嗵?⑸    /// </summary>
     /// <param name="data">返回后台配置的自定义json数据，如：{"x":"x", "x":8, "x":{x}, "x":[x]}</param>
     public void onReceiveServerExtra (string data) {
         if (OnReceiveServerExtra != null && OnReceiveServerExtra.GetInvocationList ().Length > 0) {
@@ -272,8 +269,7 @@ public class RiseSdkListener : MonoBehaviour {
     }
 
     /// <summary>
-    /// 大屏广告被点击的回调方法，SDK自动调用。
-    /// </summary>
+    /// 大屏广告被点击的回调方法，SDK自动饔谩⑸    /// </summary>
     /// <param name="data">返回的数据</param>
     public void onFullAdClicked (string data) {
         if (OnAdEvent != null && OnAdEvent.GetInvocationList ().Length > 0) {
